@@ -1,0 +1,12 @@
+opencv-python-headless
+ultralytics
+torch
+torchvision
+numpy
+pandas
+Pillow
+pytesseract
+easyocr
+selenium
+pyautogui
+pytest
