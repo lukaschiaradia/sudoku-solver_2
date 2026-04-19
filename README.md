@@ -83,13 +83,30 @@ Le modèle final sera disponible dans `runs/train/sudoku_grid/weights/best.pt`.
 
 - `scripts/run_demo.py` lance le pipeline complet : détection, extraction, reconnaissance et résolution.
 - `scripts/run_full_automation.py` capture l'écran principal, détecte la grille, résout le Sudoku et remplit les cases avec `pyautogui`.
+- `scripts/export_templates.py` génère un dossier `data/templates` avec des modèles de chiffres réutilisables.
 - Les résultats sont écrits dans `outputs/predictions/result.json` ou `outputs/predictions/full_automation.json`.
 
 ### Exemple d'automatisation écran
 
 ```bash
+python3 scripts/run_full_automation.py
+```
+
+Sans options supplémentaires, le script utilise les poids par défaut et capture l'écran.
+
+```bash
 python3 scripts/run_full_automation.py --weights weights/best.pt --grid-weights weights2/best.pt --grid-conf 0.01
 ```
+
+### Générer des templates de chiffres
+
+Pour créer un dossier de templates réutilisables :
+
+```bash
+python3 scripts/export_templates.py
+```
+
+Cela crée `data/templates/1_1.png`, `data/templates/1_2.png`, etc. et améliore la reconnaissance par `--method template`.
 
 Pour obtenir des fichiers de debug et inspecter la grille détectée :
 
@@ -103,6 +120,8 @@ Ce script :
 - lit les chiffres par OCR,
 - résout le Sudoku,
 - remplit les cases vides sur l'écran en cliquant.
+
+> Note : pour la saisie automatique avec `pyautogui`, exécute ce script depuis un terminal Windows (PowerShell ou CMD) et non depuis WSL, car la capture d'écran et le clic nécessitent l'accès à l'écran Windows.
 
 ## Provenance des données
 

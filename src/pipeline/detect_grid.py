@@ -69,8 +69,8 @@ def detect_cells_yolo(image, weights_path: str = 'weights/best.pt', conf: float 
         if boxes is not None:
             for box in boxes:
                 xyxy = box.xyxy.cpu().numpy().astype(int).flatten().tolist()
-                score = float(box.conf.cpu().numpy()) if hasattr(box, 'conf') else None
-                class_id = int(box.cls.cpu().numpy()) if hasattr(box, 'cls') else None
+                score = float(box.conf.cpu().numpy().flatten()[0]) if hasattr(box, 'conf') else None
+                class_id = int(box.cls.cpu().numpy().flatten()[0]) if hasattr(box, 'cls') else None
                 detections.append({
                     'xyxy': xyxy,
                     'score': score,

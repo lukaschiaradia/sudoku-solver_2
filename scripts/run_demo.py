@@ -18,9 +18,11 @@ def main():
     parser.add_argument('--grid-weights', default='weights2/best.pt', help='Grid YOLO weights file')
     parser.add_argument('--grid-conf', type=float, default=0.2, help='YOLO confidence threshold for grid detection')
     parser.add_argument('--output', default='outputs/predictions/result.json', help='Output JSON file')
-    parser.add_argument('--method', default='best', choices=['best', 'easyocr', 'tesseract', 'template'], help='Digit recognition method')
+    parser.add_argument('--method', default='best', choices=['best', 'easyocr', 'tesseract', 'template', 'cnn'], help='Digit recognition method')
     parser.add_argument('--template-folder', default='data/templates', help='Folder containing digit templates for template matching')
     parser.add_argument('--yolo-conf', type=float, default=0.2, help='YOLO confidence threshold for cell detection')
+    parser.add_argument('--debug', action='store_true', help='Save debug images for the cells and grid')
+    parser.add_argument('--debug-dir', default='outputs/debug', help='Debug output directory')
     args = parser.parse_args()
 
     result = infer_sudoku_from_image(
@@ -31,6 +33,8 @@ def main():
         template_folder=args.template_folder,
         yolo_conf=args.yolo_conf,
         grid_conf=args.grid_conf,
+        debug=args.debug,
+        debug_dir=args.debug_dir,
     )
 
     output = {

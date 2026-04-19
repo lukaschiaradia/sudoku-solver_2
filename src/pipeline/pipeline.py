@@ -7,11 +7,12 @@ from src.pipeline.detect_grid import detect_cells_yolo, detect_grid_opencv, dete
 from src.pipeline.segment_cells import crop_grid_from_bbox, warp_grid_from_corners, split_grid_to_cells, assign_detections_to_cells
 from src.pipeline.recognize_digits import (
     recognize_digit,
+    recognize_digit_candidates,
     is_cell_blank,
     build_templates,
     build_easyocr_reader,
 )
-from src.pipeline.solver import solve_sudoku, format_grid
+from src.pipeline.solver import solve_sudoku, solve_sudoku_with_candidates, format_grid
 
 
 def load_image(path: str):
@@ -64,12 +65,19 @@ def infer_sudoku_from_image(
         cell_detections = []
 
     assignments = assign_detections_to_cells(cell_detections, grid.shape)
-    templates = build_templates(template_folder) if recognition_method == 'template' else None
-    reader = build_easyocr_reader() if recognition_method in ('easyocr', 'best') else None
+    templates = build_templates(template_folder) if recognition_method in ('template', 'best') else None
+    reader = None
+    if recognition_method in ('easyocr', 'best'):
+        try:
+            reader = build_easyocr_reader()
+        except ImportError:
+            reader = None
 
     raw_grid = []
+    candidate_grid = []
     for row in range(9):
         row_values = []
+        row_candidates = []
         for col in range(9):
             idx = row * 9 + col
             cell = cells[idx]
@@ -77,26 +85,44 @@ def infer_sudoku_from_image(
                 debug_path = os.path.join(debug_dir, f'cell_{row}_{col}.png')
                 cv2.imwrite(debug_path, cell)
             assignment = assignments[idx]
-            if assignment is not None and assignment.get('class_name') == 'cell_empty':
+            if is_cell_blank(cell):
                 value = 0
-            elif assignment is not None and assignment.get('class_name') == 'cell_filled':
-                value = recognize_digit(cell, method=recognition_method, templates=templates, reader=reader)
+                candidates = list(range(1, 10))
             else:
-                if is_cell_blank(cell):
-                    value = 0
+                candidates = recognize_digit_candidates(
+                    cell,
+                    method=recognition_method,
+                    templates=templates,
+                    reader=reader,
+                )
+                if candidates:
+                    value = candidates[0][0]
+                    candidates = [digit for digit, _ in candidates]
                 else:
-                    value = recognize_digit(cell, method=recognition_method, templates=templates, reader=reader)
+                    value = 0
+                    candidates = list(range(1, 10))
             row_values.append(value)
+            row_candidates.append(candidates)
         raw_grid.append(row_values)
+        candidate_grid.append(row_candidates)
+
+    filled_cells = sum(1 for row in raw_grid for value in row if value != 0)
+    if filled_cells == 0:
+        raise ValueError(
+            'No digits recognized in the detected Sudoku grid. '
+            'Check that the screenshot contains a visible grid, that the YOLO weights are correct, '
+            'and rerun with --debug to inspect the captured grid and cell crops.'
+        )
 
     solved_grid = [list(row) for row in raw_grid]
     if not solve_sudoku(solved_grid):
-        raw_grid_str = '\n'.join(''.join(str(v) for v in row) for row in raw_grid)
-        raise ValueError(
-            f'Sudoku grid could not be solved. raw_grid:\n{raw_grid_str}\n' \
-            f'cell_detections={len(cell_detections)}, assignments={sum(1 for a in assignments if a is not None)}'
-        )
-
+        solved_grid = [list(row) for row in raw_grid]
+        if not solve_sudoku_with_candidates(solved_grid, candidate_grid):
+            raw_grid_str = '\n'.join(''.join(str(v) for v in row) for row in raw_grid)
+            raise ValueError(
+                f'Sudoku grid could not be solved. raw_grid:\n{raw_grid_str}\n' \
+                f'cell_detections={len(cell_detections)}, assignments={sum(1 for a in assignments if a is not None)}'
+            )
     return {
         'raw_grid': raw_grid,
         'solved_grid': solved_grid,

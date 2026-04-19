@@ -21,6 +21,8 @@ def main():
     parser.add_argument('--grid-conf', type=float, default=0.01, help='YOLO confidence threshold for grid detection')
     parser.add_argument('--yolo-conf', type=float, default=0.2, help='YOLO confidence threshold for cell detection')
     parser.add_argument('--output', default='outputs/predictions/full_automation.json', help='Output JSON file')
+    parser.add_argument('--method', default='best', choices=['best', 'easyocr', 'tesseract', 'template', 'cnn'], help='Digit recognition method')
+    parser.add_argument('--template-folder', default='data/templates', help='Folder containing digit templates for template matching')
     parser.add_argument('--debug', action='store_true', help='Save debug images for the grid and cells')
     parser.add_argument('--debug-dir', default='outputs/debug', help='Directory to save debug images')
     parser.add_argument('--dry-run', action='store_true', help='Do not click or type on screen')
@@ -32,8 +34,8 @@ def main():
             image_path,
             weights_path=args.weights,
             grid_weights_path=args.grid_weights,
-            recognition_method='best',
-            template_folder=None,
+            recognition_method=args.method,
+            template_folder=args.template_folder,
             yolo_conf=args.yolo_conf,
             grid_conf=args.grid_conf,
             debug=args.debug,
