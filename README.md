@@ -1,142 +1,215 @@
-# Sudoku Solver 2
+# Sudoku Solver — Computer Vision
 
-Projet de reconnaissance visuelle et résolution automatique de Sudoku.
+Projet Epitech — Résolution automatique de grilles Sudoku par vision par ordinateur.
 
-## Objectif
+Le programme capture visuellement une grille Sudoku affichée dans un navigateur, reconnaît les chiffres, résout la grille, puis interagit automatiquement avec le site pour saisir la solution — **sans jamais utiliser le DOM HTML**.
 
-- Détecter une grille de Sudoku uniquement par vision (captures d'écran).
-- Segmenter les 81 cases de la grille.
-- Reconnaître les chiffres présents dans les cases.
-- Résoudre la grille avec un solveur déterministe.
-- Préparer l'automatisation de saisie locale.
+---
 
-## Structure du dépôt
+## Pipeline
 
-- `raw/` : captures d'écran réelles de grilles Sudoku.
-- `weights/best.pt` : modèle YOLO fourni pour la détection.
-- `src/pipeline/` : modules de détection, segmentation, OCR, et solveur.
-- `scripts/run_demo.py` : démonstration de pipeline sur image.
-- `tests/` : tests unitaires de base.
-- `requirements.txt` : dépendances Python.
-- `Dockerfile` : image de base pour exécution locale.
+```
+Screenshot → Détection grille (YOLO) → Warp & crop
+    ↓
+Segmentation 9×9 → Détection cellules (YOLO)
+    ↓
+Reconnaissance chiffres (CNN / EasyOCR / Tesseract)
+    ↓
+Résolution (backtracking + contraintes)
+    ↓
+Interaction automatique (pyautogui)
+```
+
+---
+
+## Modèles et approches
+
+### Détection de la grille
+- **YOLO fine-tuné** (`weights2/best.pt`) — détecte la grille entière, effectue un warp de perspective
+- **OpenCV** (fallback) — détection par contours si YOLO échoue
+
+### Détection des cellules
+- **YOLO fine-tuné** (`weights/best.pt`) — classifie chaque cellule en `cell_filled` / `cell_empty`
+
+### Reconnaissance des chiffres
+Trois approches implémentées et comparées :
+
+| Méthode | Description |
+|---|---|
+| **CNN** | Réseau de neurones entraîné sur 3000+ crops réels de sudoku.com |
+| **EasyOCR** | Modèle OCR pré-entraîné avec preprocessing adaptatif |
+| **Tesseract** | OCR classique (PSM 10, whitelist 1-9) |
+
+### Résolution
+- Backtracking standard
+- Backtracking avec propagation de contraintes (MRV heuristic)
+
+---
 
 ## Installation
 
-1. Crée un environnement Python 3.12 :
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
+### Prérequis
+- Python 3.12
+- Tesseract OCR : [installer ici](https://github.com/UB-Mannheim/tesseract/wiki)
 
-2. Exécute le démonstrateur sur une image du dossier `raw/` :
-   ```bash
-   python3 scripts/run_demo.py --image raw/sudoku_0.png --weights weights/best.pt
-   ```
-
-3. Si tu veux utiliser le nouveau modèle de détection de grille disponible dans `weights2/best.pt` :
-   ```bash
-   python3 scripts/run_demo.py --image raw/sudoku_0.png --weights weights/best.pt --grid-weights weights2/best.pt --grid-conf 0.1
-   ```
-
-## Entraînement d'un modèle YOLOv8 sur Colab
-
-Pour entraîner le modèle sur Colab avec ton dataset Roboflow :
-
-1. Télécharge le dataset YOLO dans Colab et vérifie le dossier :
-   ```python
-   !pip install roboflow ultralytics
-
-   from roboflow import Roboflow
-   rf = Roboflow(api_key="50DYirGbCOmEfYQRzJbw")
-   project = rf.workspace("lukass-workspace-2myrq").project("sudoku-grid2")
-   version = project.version(1)
-   dataset = version.download("yolov8")
-   print(dataset.location)
-   !find "{dataset.location}" -maxdepth 2 -type f
-   ```
-
-2. Entraîne le modèle YOLOv8 sur le dataset :
-   ```bash
-   !python3 -m ultralytics yolo task=detect mode=train model=yolov8n.pt data="/content/sudoku-grid2-1/data.yaml" epochs=20 imgsz=640 batch=16 project=/content/runs/train name=sudoku_grid
-   ```
-
-3. Télécharge le poids entraîné :
-   ```python
-   from google.colab import files
-   files.download('/content/runs/train/sudoku_grid/weights/best.pt')
-   ```
-
-4. Place ensuite `best.pt` dans `weights/` de ton dépôt, par exemple `weights/grid.pt`.
-
-## Entraînement local
-
-Si tu veux entraîner localement à partir de ton dataset téléchargé :
-
+### Setup
 ```bash
-python3 scripts/train_yolo.py --data weights/data.yaml --model yolov8n.pt --epochs 20 --imgsz 640 --batch 16 --project runs/train --name sudoku_grid
+git clone <repo>
+cd sudoku-solver_2
+
+python -m venv .venv
+# Windows :
+.venv\Scripts\activate
+# Linux/Mac :
+source .venv/bin/activate
+
+pip install -r requirements.txt
 ```
 
-Le modèle final sera disponible dans `runs/train/sudoku_grid/weights/best.pt`.
+---
 
-## Usage
+## Utilisation
 
-- `scripts/run_demo.py` lance le pipeline complet : détection, extraction, reconnaissance et résolution.
-- `scripts/run_full_automation.py` capture l'écran principal, détecte la grille, résout le Sudoku et remplit les cases avec `pyautogui`.
-- `scripts/export_templates.py` génère un dossier `data/templates` avec des modèles de chiffres réutilisables.
-- Les résultats sont écrits dans `outputs/predictions/result.json` ou `outputs/predictions/full_automation.json`.
-
-### Exemple d'automatisation écran
-
+### Tester sur une image
 ```bash
-python3 scripts/run_full_automation.py
+python scripts/run_demo.py --image raw/sudoku_0.png
 ```
 
-Sans options supplémentaires, le script utilise les poids par défaut et capture l'écran.
-
+Avec debug (sauvegarde les crops de cellules) :
 ```bash
-python3 scripts/run_full_automation.py --weights weights/best.pt --grid-weights weights2/best.pt --grid-conf 0.01
+python scripts/run_demo.py --image raw/sudoku_0.png --debug --debug-dir outputs/debug
 ```
 
-### Générer des templates de chiffres
-
-Pour créer un dossier de templates réutilisables :
-
-```bash
-python3 scripts/export_templates.py
+Options disponibles :
+```
+--image           Image à analyser
+--weights         Poids YOLO détection cellules (défaut: weights/best.pt)
+--grid-weights    Poids YOLO détection grille  (défaut: weights2/best.pt)
+--method          Méthode OCR : cnn, easyocr, tesseract, best (défaut: best)
+--yolo-conf       Seuil de confiance YOLO cellules (défaut: 0.3)
+--grid-conf       Seuil de confiance YOLO grille   (défaut: 0.1)
+--debug           Activer le mode debug
 ```
 
-Cela crée `data/templates/1_1.png`, `data/templates/1_2.png`, etc. et améliore la reconnaissance par `--method template`.
-
-Pour obtenir des fichiers de debug et inspecter la grille détectée :
-
+### Automation complète (screenshot → résolution → saisie automatique)
 ```bash
-python3 scripts/run_full_automation.py --weights weights/best.pt --grid-weights weights2/best.pt --grid-conf 0.01 --debug --debug-dir outputs/debug --dry-run
+# Dry-run : vérifie la reconnaissance sans cliquer
+python scripts/run_full_automation.py --method cnn --dry-run
+
+# Automation complète (sudoku.com doit être ouvert et visible)
+python scripts/run_full_automation.py --method cnn
 ```
 
-Ce script :
-- prend un screenshot de l'écran principal,
-- détecte la grille entière avec `weights2/best.pt`,
-- lit les chiffres par OCR,
-- résout le Sudoku,
-- remplit les cases vides sur l'écran en cliquant.
+> Lancer depuis **PowerShell ou CMD Windows** (pas WSL) — pyautogui requiert l'accès à l'écran.
 
-> Note : pour la saisie automatique avec `pyautogui`, exécute ce script depuis un terminal Windows (PowerShell ou CMD) et non depuis WSL, car la capture d'écran et le clic nécessitent l'accès à l'écran Windows.
+### Benchmark des méthodes
+```bash
+python scripts/benchmark.py --limit 20 --methods cnn easyocr tesseract
+```
 
-## Provenance des données
+---
 
-- Dossier `raw/` : captures réelles fournies par l'utilisateur.
-- Le projet est construit pour fonctionner avec des captures de `sudoku.com`.
+## Entraîner le CNN
 
-## Notes
+### 1. Extraire les crops de chiffres depuis les screenshots
+```bash
+python scripts/extract_digit_crops.py
+```
+Génère `data/digit_crops/labeled/1/` ... `/9/` et `data/digit_crops/unknown/`.  
+Déplacer manuellement les images de `unknown/` dans le bon dossier chiffre.
 
-- La perception est conçue pour être uniquement basée sur image.
-- `src/pipeline/automation.py` contient une base Selenium pour la saisie, mais la logique de sélection de cellule doit être adaptée au DOM du site.
-- Le solveur est un backtracking déterministe.
+### 2. Entraîner
+```bash
+python scripts/train_digit_cnn.py --epochs 30 --output weights/digit_cnn.pth
+```
 
-## Prochaines étapes
+Options :
+```
+--data      Dossier des crops labelisés (défaut: data/digit_crops/labeled)
+--epochs    Nombre d'époques              (défaut: 30)
+--batch     Taille de batch               (défaut: 32)
+--output    Chemin du modèle sauvegardé   (défaut: weights/digit_cnn.pth)
+```
 
-1. Évaluer la performance du modèle YOLO existant sur les images `raw/`.
-2. Ajouter un second canal de reconnaissance (`template matching` ou CNN).
-3. Construire un jeu de validation et produire des métriques objectives.
-4. Finaliser l'automatisation de la saisie avec Selenium localement.
+### Entraîner les modèles YOLO (Colab recommandé)
+```bash
+# Cellules
+python scripts/train_yolo.py --data data/cells.yaml --model yolov8n.pt --epochs 50
+
+# Grille
+python scripts/train_yolo.py --data data/grid.yaml --model yolov8n.pt --epochs 30
+```
+
+---
+
+## Docker
+
+### Build
+```bash
+docker build -t sudoku-solver .
+```
+
+### Run
+```bash
+# Sur une image
+docker run --rm -v $(pwd)/raw:/app/raw sudoku-solver \
+    python scripts/run_demo.py --image raw/sudoku_0.png
+
+# Avec les poids personnalisés
+docker run --rm \
+    -v $(pwd)/raw:/app/raw \
+    -v $(pwd)/weights:/app/weights \
+    -v $(pwd)/outputs:/app/outputs \
+    sudoku-solver python scripts/run_demo.py --image raw/sudoku_0.png --method cnn
+```
+
+---
+
+## Structure du projet
+
+```
+sudoku-solver_2/
+├── src/pipeline/
+│   ├── detect_grid.py       # Détection YOLO + OpenCV
+│   ├── segment_cells.py     # Warp perspective + split 9×9
+│   ├── recognize_digits.py  # CNN / EasyOCR / Tesseract
+│   ├── solver.py            # Backtracking + MRV
+│   ├── screen_capture.py    # Screenshot pyautogui
+│   ├── automation.py        # Clic automatique
+│   └── pipeline.py          # Orchestration
+├── scripts/
+│   ├── run_demo.py               # Test sur image
+│   ├── run_full_automation.py    # Automation complète
+│   ├── extract_digit_crops.py    # Extraction dataset CNN
+│   ├── train_digit_cnn.py        # Entraînement CNN
+│   ├── train_yolo.py             # Entraînement YOLO
+│   └── benchmark.py              # Comparaison des méthodes
+├── weights/
+│   ├── best.pt              # YOLO cellules (fine-tuné)
+│   └── digit_cnn.pth        # CNN chiffres (entraîné sur sudoku.com)
+├── weights2/
+│   └── best.pt              # YOLO grille (fine-tuné)
+├── raw/                     # 100 screenshots sudoku.com
+├── data/digit_crops/        # Dataset CNN (3000+ crops)
+├── tests/                   # Tests unitaires
+├── Dockerfile
+└── requirements.txt
+```
+
+---
+
+## Stack technique
+
+- **Vision** : OpenCV, Ultralytics YOLO
+- **Deep Learning** : PyTorch, torchvision
+- **OCR** : EasyOCR, Tesseract / pytesseract
+- **Automation** : pyautogui, Selenium
+- **Déploiement** : Docker
+
+---
+
+## Contrainte fondamentale
+
+Conformément aux exigences du projet, **le DOM HTML n'est jamais utilisé** pour localiser la grille ou identifier les chiffres. Toute la perception passe exclusivement par analyse d'image (computer vision).
+
+L'utilisation du HTML est limitée aux interactions annexes uniquement (acceptation de cookies, etc.).
